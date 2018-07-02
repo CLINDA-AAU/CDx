@@ -1,7 +1,7 @@
 ---
 title: "Companion Diagnostics"
 author: "Rasmus Brøndum & Martin Bøgsted"
-date: "3 May 2018"
+date: "July 2nd 2018"
 output:
   html_document: default
   pdf_document: default
@@ -283,6 +283,20 @@ simFunc <- function(simDist = "weibull", betaZero = 1, betaCens = 3, betaTrue = 
 }
 ```
 
+Make latex table for Simulation results
+```{r}
+resultsTable.tmp <- data.frame(round(resultsTable,3))
+resultsTable.tmp$betaCens <- ifelse(resultsTable.tmp$betaCens == 3, "yes", "no")
+latex(resultsTable.tmp,
+      title = "",
+      rgroup = c("Weibull", "log-normal", "log-logistic"),
+      n.rgroup = c(2,2,2),
+      colheads = c("Censoring", "PPV", "Mean", "Coverage", "Mean", "Coverage"),
+      cgroup = c("Simulation", "Simon", "NonPar"),
+      n.cgroup = c(2,2,2),
+      rowlabel = NA,
+      file = "simulationResults.tex")
+```
 
 # Simulated data
 In this section data are simulated to investigate differences between the method by [@Simon2015] and the non-parametric estimator. We estimate from an exponential distribution (Weibull with shape parameter = 1) which follows the proportional hazards assumptions required by Simons method and from a log-normal follow which does not.
