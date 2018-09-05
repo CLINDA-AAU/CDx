@@ -1,6 +1,6 @@
 ---
 title: "Companion Diagnostics"
-author: "Rasmus BrÃ¸ndum & Martin BÃ¸gsted"
+author: "Rasmus Brøndum & Martin Bøgsted"
 date: "July 2nd 2018"
 output:
   html_document: default
@@ -28,7 +28,7 @@ library("survPresmooth")
 
 Set up parralel computations
 ```{r}
-registerDoParallel(cores = 20)
+registerDoParallel(cores = 3)
 ```
 
 
@@ -210,22 +210,21 @@ kNonP <- function(sdata, tau = Inf, concordance = "PPV"){
 ```
 
 
-Monte carlo integration of log-normal PPV
+Numerical integration of log-normal PPV
 ```{r}
 fxlnorm = function(x, sigma = 1, beta0 = 1, beta1  = 1){
   1/(x*sigma*sqrt(2*pi))*exp(-(1/(2*sigma^2))*(log(x)-beta0)^2) * # Control density
     (1 - pnorm((log(x) - (beta0+beta1))/sigma))                 # Treatment Survival function
 }
 
-LogNormMCI = function(sigma = 1, beta0 = 1, beta1  = 1, interval = c(0,30), nSamples = 1000000){
-  y <- runif(n = nSamples, min = interval[1], max = interval[2])
-  M <- interval[2] - interval[1]
-  M * (1/nSamples) * sum(fxlnorm(y, beta1 = beta1, beta0 = beta0, sigma = sigma))
+LogNormNumInt = function(sigma = 1, beta0 = 1, beta1  = 1, interval = c(0,Inf), nSamples = 1000000){
+  f <- function(x){fxlnorm(x, beta1 = beta1, beta0 = beta0, sigma = sigma)}
+  integrate(f, interval[1], interval[2], subdivisions = nSamples)[[1]]
 }
 ```
 
 
-Monte Carlo integration of log-logistic PPV
+Numerical integration of log-logistic PPV
 ```{r}
 fxloglog = function(x, gamma = 2, beta0 = 1, beta1  = 1){
   lambdaC <- exp(-beta0)
@@ -237,10 +236,9 @@ fxloglog = function(x, gamma = 2, beta0 = 1, beta1  = 1){
   dllogis(x, shape = beta, scale = alphaC) * (1 - pllogis(x, shape = beta, scale = alphaT))
 }
 
-LogLogMCI = function(gamma = 2, beta0 = 1, beta1  = 1, interval = c(0,30), nSamples = 1000000){
-  y <- runif(n = nSamples, min = interval[1], max = interval[2])
-  M <- interval[2] - interval[1]
-  M * (1/nSamples) * sum(fxloglog(y, beta1 = beta1, beta0 = beta0, gamma = gamma))
+LogLogNumInt = function(gamma = 2, beta0 = 1, beta1  = 1, interval = c(0,Inf), nSamples = 1000000){
+  f <- function(x){fxloglog(x, beta1 = beta1, beta0 = beta0, gamma = gamma)}
+  integrate(f, interval[1], interval[2], subdivisions = nSamples)[[1]]
 }
 ```
 
@@ -283,23 +281,63 @@ simFunc <- function(simDist = "weibull", betaZero = 1, betaCens = 3, betaTrue = 
 }
 ```
 
-Make latex table for Simulation results
-```{r}
-resultsTable.tmp <- data.frame(round(resultsTable,3))
-resultsTable.tmp$betaCens <- ifelse(resultsTable.tmp$betaCens == 3, "yes", "no")
-latex(resultsTable.tmp,
-      title = "",
-      rgroup = c("Weibull", "log-normal", "log-logistic"),
-      n.rgroup = c(2,2,2),
-      colheads = c("Censoring", "PPV", "Mean", "Coverage", "Mean", "Coverage"),
-      cgroup = c("Simulation", "Simon", "NonPar"),
-      n.cgroup = c(2,2,2),
-      rowlabel = NA,
-      file = "simulationResults.tex")
-```
-
 # Simulated data
-In this section data are simulated to investigate differences between the method by [@Simon2015] and the non-parametric estimator. We estimate from an exponential distribution (Weibull with shape parameter = 1) which follows the proportional hazards assumptions required by Simons method and from a log-normal follow which does not.
+In this section data are simulated to investigate differences between the method by [@Simon2015] and the non-parametric estimator. We estimate from an exponential distribution (Weibull with shape parameter = 1) which follows the proportional hazards assumptions required by Simons method and from a log-normal follow which does not. First we create figure 1, with a visual representation of differences between PH and notPH
+
+```{r}
+set.seed(32)
+PH <- simple.surv.sim(n = 1000,
+                     foltime = 1000,
+                     dist.ev = "weibull",
+                     dist.cens = "weibull",
+                     anc.ev = 1,
+                     anc.cens = 1,
+                     beta0.ev = 1,
+                     beta0.cens = 1,
+                     x = list(c("bern", 0.5)),
+                     beta = list(2))
+
+notPH1 <- simple.surv.sim(n = 500,
+                         foltime = 1000,
+                         dist.ev = "llogistic",
+                         dist.cens = "weibull",
+                         anc.ev = 1,
+                         anc.cens = 1,
+                         beta0.ev = 1,
+                         beta0.cens = 1)
+
+notPH2 <- simple.surv.sim(n = 500,
+                          foltime = 1000,
+                          dist.ev = "lnorm",
+                          dist.cens = "weibull",
+                          anc.ev = 1,
+                          anc.cens = 1,
+                          beta0.ev = 2,
+                          beta0.cens = 1)
+notPH2$x <- rep(1, nrow(notPH2))
+notPH <- rbind(notPH1, notPH2)
+
+
+
+fitPH    <- survfit(with(PH, Surv(start,stop, status)~x))
+fitnotPH <- survfit(with(notPH, Surv(start,stop, status)~x))
+
+fitPH.cox        <- coxph(with(PH, Surv(start,stop, status)~x))
+fitnotPH.cox     <- coxph(with(notPH, Surv(start,stop, status)~x))
+fitPH.cox.zph    <- cox.zph(fitPH.cox)
+fitnotPH.cox.zph <- cox.zph(fitnotPH.cox)
+
+
+par(mfrow=c(2,2))
+plot(fitPH, lty = 1:2, main = "Proportional Hazards", xlab = "Time", ylab = "Survival")
+plot(fitPH, lty = 1:2, fun = "cloglog", main = "Proportional Hazards",
+     xlab = "log(Time)", ylab = "log(-log(Survival)", xlim = c(0.5,15))
+text(paste("Test for PH: p =", round(fitPH.cox.zph$table[3], 3)), x = 7, y = -6)
+plot(fitnotPH, lty = 1:2, main = "not Proportional Hazards", xlab = "Time", ylab = "Survival")
+plot(fitnotPH, lty = 1:2, fun = "cloglog", main = "not Proportional Hazards",
+     xlab = "log(Time)", ylab = "log(-log(Survival)", xlim = c(0.5,15))
+text(paste("Test for PH: p =", round(fitnotPH.cox.zph$table[3], 3)), x = 7, y =-6)
+```
 
 ```{r}
 set.seed(314)
@@ -313,8 +351,8 @@ allResults <- list()
 ### Get true PPVs
 PPVvec <- c()
 PPVvec["weibull"] <- 1/(1+exp(- anc * betaTrue))
-PPVvec["lnorm"] <- LogNormMCI(beta1 = betaTrue, beta0 = betaZero, sigma = anc)
-PPVvec["llogistic"] <- LogLogMCI(beta1 = betaTrue, beta0 = betaZero, gamma = anc)
+PPVvec["lnorm"] <- LogNormNumInt(beta1 = betaTrue, beta0 = betaZero, sigma = anc)
+PPVvec["llogistic"] <- LogLogNumInt(beta1 = betaTrue, beta0 = betaZero, gamma = anc)
 
 simDist  <- c("weibull", "lnorm", "llogistic")
 betaCens <- c(3, 100)
@@ -346,6 +384,20 @@ kable(resultsTable, digits = 3, caption = "Estimated PPV from simulated data usi
 
 ```
 
+Make latex table for Simulation results
+```{r}
+resultsTable.tmp <- data.frame(round(resultsTable,3))
+resultsTable.tmp$betaCens <- ifelse(resultsTable.tmp$betaCens == 3, "yes", "no")
+latex(resultsTable.tmp,
+      title = "",
+      rgroup = c("Weibull", "log-normal", "log-logistic"),
+      n.rgroup = c(2,2,2),
+      colheads = c("Censoring", "PPV", "Mean", "Coverage", "Mean", "Coverage"),
+      cgroup = c("Simulation", "Simon", "NonPar"),
+      n.cgroup = c(2,2,2),
+      rowlabel = NA,
+      file = "simulationResults.tex")
+```
 
 
 # Amado 2008 - KRAS study
