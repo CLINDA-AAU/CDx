@@ -1,6 +1,6 @@
 ---
 title: "Companion Diagnostics"
-author: "Rasmus Brøndum & Martin Bøgsted"
+author: "Rasmus Brondum & Martin Bogsted"
 date: "July 2nd 2018"
 output:
   html_document: default
@@ -28,7 +28,7 @@ library("survPresmooth")
 
 Set up parralel computations
 ```{r}
-registerDoParallel(cores = 3)
+registerDoParallel(cores = 30)
 ```
 
 
@@ -339,8 +339,8 @@ plot(fitnotPH, lty = 1:2, fun = "cloglog", main = "not Proportional Hazards",
 text(paste("Test for PH: p =", round(fitnotPH.cox.zph$table[3], 3)), x = 7, y =-6)
 ```
 
+Then we perform the simulations
 ```{r}
-set.seed(314)
 betaZero <- 1
 betaTrue <- 1
 anc      <- 1
@@ -364,6 +364,7 @@ for(sim in simDist){
   
   for(betac in betaCens){
     results <- foreach(i=1:nSim, .combine = "rbind", .packages = "survsim") %dopar% {
+      set.seed(i)
       simFunc(simDist = sim,
               betaZero = betaZero,
               betaTrue = betaTrue,
