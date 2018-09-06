@@ -75,8 +75,8 @@ riskTable <- function(risk_time, nrisk, points){
 ```
 
 Function to calculate using Simons method [@Simon2015].
-```{r}
-simon <- function(HR, nEvents = NA, concordance = "PPV"){
+```{r, include=FALSE}
+simon.old <- function(HR, nEvents = NA, concordance = "PPV"){
   ## Function to calculate the positive or negative predictive value
   ## using the semi-parametric method from Simon (2015).
   ## Input are the Hazard ratio (HR) of treatment vs control,
@@ -112,6 +112,36 @@ simon <- function(HR, nEvents = NA, concordance = "PPV"){
                   "pub" =pub)
   return(results)
 }
+```
+
+```{r}
+simon <- function(HR, conf = NA, concordance = "PPV"){
+  ## Function to calculate the positive or negative predictive value
+  ## using the semi-parametric method from Simon (2015).
+  ## Inputs are the Hazard ratio (HR) of treatment vs control, confidence interval
+  ## and the desired concordance measure PPV / NPV.
+  ## Note that hazard ratios must be calculated in either
+  ## Marker posive or negative groups for respectively PPV and NPV
+
+  if(concordance == "PPV"){
+    est      <- 1 / (1 + HR)
+    est_low  <- 1 / (1 + conf[1])
+    est_high <- 1 / (1 + conf[2])
+  } else{
+    est      <- HR / (1 + HR)
+    est_low  <- conf[1] / (1 + conf[1])
+    est_high <- conf[2] / (1 + conf[2])
+  }
+  
+  conf <- sort(c(est_low, est_high))
+  pub  <- paste0(round(est,2), " (", round(conf[1],2), "; ", round(conf[2],2), ")")
+  
+  results <- list("estimate" = est,
+                  "95% conf" = conf,
+                  "pub" =pub)
+  return(results)
+}
+
 ```
 
 Function to calculate Non-parametric PPV
@@ -258,12 +288,14 @@ simFunc <- function(simDist = "weibull", betaZero = 1, betaCens = 3, betaTrue = 
   
   a$S <- with(a, Surv(stop, status))
   cox.res <- with(a, coxph(S~x))
+  cox.res.sum <- summary(cox.res)
   test.ph <- cox.zph(cox.res)
   
   results <- c()
   
   # Store PPV estimate from Simon
-  simon.est <- simon(exp(coef(cox.res)), cox.res$nevent)
+  #simon.est <- simon(exp(coef(cox.res)), cox.res$nevent)
+  simon.est <- simon(cox.res.sum$coefficients[2], cox.res.sum$conf.int[3:4])
   results["Simon"] <- simon.est$estimate
   
   # Check if confidence interval contains true PPV
@@ -319,25 +351,60 @@ notPH <- rbind(notPH1, notPH2)
 
 
 
-fitPH    <- survfit(with(PH, Surv(start,stop, status)~x))
-fitnotPH <- survfit(with(notPH, Surv(start,stop, status)~x))
+fitPH    <- survfit(with(PH, Surv(stop, status)~x))
+fitnotPH <- survfit(with(notPH, Surv(stop, status)~x))
 
-fitPH.cox        <- coxph(with(PH, Surv(start,stop, status)~x))
-fitnotPH.cox     <- coxph(with(notPH, Surv(start,stop, status)~x))
+fitPH.cox        <- coxph(with(PH, Surv(stop, status)~x))
+fitnotPH.cox     <- coxph(with(notPH, Surv(stop, status)~x))
 fitPH.cox.zph    <- cox.zph(fitPH.cox)
 fitnotPH.cox.zph <- cox.zph(fitnotPH.cox)
 
 
 par(mfrow=c(2,2))
 plot(fitPH, lty = 1:2, main = "Proportional Hazards", xlab = "Time", ylab = "Survival")
+mtext("A", side  = 3, line = 1, at  =-4)
 plot(fitPH, lty = 1:2, fun = "cloglog", main = "Proportional Hazards",
-     xlab = "log(Time)", ylab = "log(-log(Survival)", xlim = c(0.5,15))
-text(paste("Test for PH: p =", round(fitPH.cox.zph$table[3], 3)), x = 7, y = -6)
-plot(fitnotPH, lty = 1:2, main = "not Proportional Hazards", xlab = "Time", ylab = "Survival")
-plot(fitnotPH, lty = 1:2, fun = "cloglog", main = "not Proportional Hazards",
-     xlab = "log(Time)", ylab = "log(-log(Survival)", xlim = c(0.5,15))
-text(paste("Test for PH: p =", round(fitnotPH.cox.zph$table[3], 3)), x = 7, y =-6)
+     xlab = "log(Time)", ylab = "cloglog(Survival)", xlim = c(0.5,15))
+text(paste("Test for PH: p =", round(fitPH.cox.zph$table[3], 3)), x = 6, y = -6)
+mtext("B", side  = 3, line = 1, at = 0.2)
+plot(fitnotPH, lty = 1:2, main = "Not Proportional Hazards", xlab = "Time", ylab = "Survival")
+mtext("C", side  = 3, line = 1, at  =-4)
+plot(fitnotPH, lty = 1:2, fun = "cloglog", main = "Not Proportional Hazards",
+     xlab = "log(Time)", ylab = "cloglog(Survival)", xlim = c(0.5,15))
+text(paste("Test for PH: p =", round(fitnotPH.cox.zph$table[3], 3)), x = 6, y =-6)
+mtext("D", side  = 3, line = 1, at  =0.2)
+par(mfrow = c(1,1))
 ```
+
+```{r, include=FALSE}
+pdf("Figure1.pdf")
+  par(mfrow = c(2,2))
+  plot(fitPH, lty = 1:2, main = "Proportional Hazards", xlab = "Time", ylab = "Survival")
+  mtext("A", side  = 3, line = 1.4, at  =-4, font = 2)
+  plot(fitPH, lty = 1:2, fun = "cloglog", main = "Proportional Hazards",
+       xlab = "log(Time)", ylab = "cloglog(Survival)", xlim = c(0.5,15))
+  text(paste("Test for PH: p =", round(fitPH.cox.zph$table[3], 3)), x = 6, y = -6)
+  mtext("B", side  = 3, line = 1.4, at = 0.2, font = 2)
+  plot(fitnotPH, lty = 1:2, main = "Not Proportional Hazards", xlab = "Time", ylab = "Survival")
+  mtext("C", side  = 3, line = 1.4, at  =-4, font = 2)
+  plot(fitnotPH, lty = 1:2, fun = "cloglog", main = "Not Proportional Hazards",
+       xlab = "log(Time)", ylab = "cloglog(Survival)", xlim = c(0.5,15))
+  text(paste("Test for PH: p =", round(fitnotPH.cox.zph$table[3], 3)), x = 6, y =-6)
+  mtext("D", side  = 3, line = 1.4, at  =0.2, font = 2)
+dev.off()
+```
+
+
+```{r, include = FALSE}
+### Try with ggplot
+library(survminer)
+a <- ggsurvplot(fitPH, data = PH, title = "Proportional Hazards", legend = "none") + labs(tag = "A")
+b <- ggsurvplot(fitPH, data = PH, title = "Proportional Hazards", legend = "none", fun = "cloglog") + labs(tag = "B")
+c <- ggsurvplot(fitnotPH, data = notPH, title = "Not Proportional Hazards", legend = "none") + labs(tag = "C")
+d <- ggsurvplot(fitnotPH, data = notPH, title = "Not Proportional Hazards", legend = "none", fun = "cloglog") + labs(tag = "D")
+arrange_ggsurvplots(list(a,c,b,d), ncol = 2, nrow = 2) 
+```
+
 
 Then we perform the simulations
 ```{r}
@@ -517,10 +584,10 @@ names(Amado2a_IPD) <- c("t", "d", "x")
 names(Amado2b_IPD) <- c("t", "d", "x")
 
 ## Cox for fig 2a
-amadoCoxA <- coxph(with(Amado2a_IPD, Surv(t,d)~x))
+amadoCoxA <- summary(coxph(with(Amado2a_IPD, Surv(t,d)~x)))
 amadoCoxA
 ## Cox for fig 2b
-amadoCoxB <- coxph(with(Amado2b_IPD, Surv(t,d)~x))
+amadoCoxB <- summary(coxph(with(Amado2b_IPD, Surv(t,d)~x)))
 amadoCoxB
 ```
 
@@ -533,12 +600,12 @@ colnames(results) <- c("Simon", "Simon_IPD","NonParametric K")
 
 
 ## Simon PPV from published or recalculated IPD data
-results[1,1] <- simon(0.45, (tot_b1+tot_b2))$pub
-results[1,2] <- simon(exp(coef(amadoCoxB)), amadoCoxB$nevent)$pub
+results[1,1] <- simon(0.45, c(0.34, 0.79))$pub
+results[1,2] <- simon(amadoCoxB$coefficients[2], amadoCoxB$conf.int[3:4])$pub
 
-## Simon PPV from published or recalculated IPD data
-results[2,1] <- simon(0.99, (tot_a1+tot_a2), "NPV")$pub
-results[2,2] <- simon(exp(coef(amadoCoxA)), amadoCoxA$nevent, "NPV")$pub
+## Simon NPV from published or recalculated IPD data
+results[2,1] <- simon(0.99, c(0.73, 1.36), "NPV")$pub
+results[2,2] <- simon(amadoCoxA$coefficients[2], amadoCoxA$conf.int[3:4], "NPV")$pub
 
 ## PPV: Longer survival in panitumumab group for KRASwt (Fig2b)
 Amado2b_IPD$os <- with(Amado2b_IPD, Surv(t, d))
@@ -665,10 +732,10 @@ names(mok_2b_IPD) <- c("t", "d", "x")
 names(mok_2c_IPD) <- c("t", "d", "x")
 
 ## Cox for fig 2b
-MokCoxB <- coxph(with(mok_2b_IPD, Surv(t,d)~x))
+MokCoxB <- summary(coxph(with(mok_2b_IPD, Surv(t,d)~x)))
 MokCoxB
 ## Cox for fig 2c
-MokCoxC <- coxph(with(mok_2c_IPD, Surv(t,d)~x))
+MokCoxC <- summary(coxph(with(mok_2c_IPD, Surv(t,d)~x)))
 MokCoxC
 ```
 
@@ -681,12 +748,12 @@ colnames(results) <- c("Simon", "Simon_IPD","NonParametric K")
 
 
 ## Simon PPV from published or recalculated IPD data
-results[1,1] <- simon(0.48, (mok_tot_b1+mok_tot_b2))$pub
-results[1,2] <- simon(exp(coef(MokCoxB)), MokCoxB$nevent)$pub
+results[1,1] <- simon(0.48, c(0.36, 0.64))$pub
+results[1,2] <- simon(MokCoxB$coefficients[2], MokCoxB$conf.int[3:4])$pub
 
 ## Simon NPV from published or recalculated IPD data
-results[2,1] <- simon(2.85, (mok_tot_c1+mok_tot_c2), "NPV")$pub
-results[2,2] <- simon(exp(coef(MokCoxC)), MokCoxC$nevent, "NPV")$pub
+results[2,1] <- simon(2.85, c(2.05,3.98), "NPV")$pub
+results[2,2] <- simon(MokCoxC$coefficients[2], MokCoxC$conf.int[3:4], "NPV")$pub
 
 ## PPV: Longer survival with Gefitinib for EGFRpos (Fig2b)
 mok_2b_IPD$os <- with(mok_2b_IPD, Surv(t, d))
