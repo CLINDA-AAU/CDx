@@ -75,8 +75,8 @@ riskTable <- function(risk_time, nrisk, points){
 ```
 
 Function to calculate using Simons method [@Simon2015].
-```{r, include=FALSE}
-simon.old <- function(HR, nEvents = NA, concordance = "PPV"){
+```{r}
+parametric.nEvents <- function(HR, nEvents = NA, concordance = "PPV"){
   ## Function to calculate the positive or negative predictive value
   ## using the semi-parametric method from Simon (2015).
   ## Input are the Hazard ratio (HR) of treatment vs control,
@@ -115,7 +115,7 @@ simon.old <- function(HR, nEvents = NA, concordance = "PPV"){
 ```
 
 ```{r}
-simon <- function(HR, conf = NA, concordance = "PPV"){
+parametric <- function(HR, conf = NA, concordance = "PPV"){
   ## Function to calculate the positive or negative predictive value
   ## using the semi-parametric method from Simon (2015).
   ## Inputs are the Hazard ratio (HR) of treatment vs control, confidence interval
@@ -146,7 +146,7 @@ simon <- function(HR, conf = NA, concordance = "PPV"){
 
 Function to calculate Non-parametric PPV
 ```{r}
-kNonP <- function(sdata, tau = Inf, concordance = "PPV"){
+nonParametric <- function(sdata, tau = Inf, concordance = "PPV"){
   library("survPresmooth")
   ## Function to calculate the positive or negative predictive value
   ## using the non-parametric methods suggested in this chapter. 
@@ -272,6 +272,7 @@ LogLogNumInt = function(gamma = 2, beta0 = 1, beta1  = 1, interval = c(0,Inf), n
 }
 ```
 
+
 Function to perform simulation and calculate estimates
 ```{r}
 simFunc <- function(simDist = "weibull", betaZero = 1, betaCens = 3, betaTrue = 1, anc.ev = 1){
@@ -293,22 +294,21 @@ simFunc <- function(simDist = "weibull", betaZero = 1, betaCens = 3, betaTrue = 
   
   results <- c()
   
-  # Store PPV estimate from Simon
-  #simon.est <- simon(exp(coef(cox.res)), cox.res$nevent)
-  simon.est <- simon(cox.res.sum$coefficients[2], cox.res.sum$conf.int[3:4])
-  results["Simon"] <- simon.est$estimate
+  # Store parametric PPV estimate
+  parametric.est <- parametric(cox.res.sum$coefficients[2], cox.res.sum$conf.int[3:4])
+  results["Parametric"] <- parametric.est$estimate
   
   # Check if confidence interval contains true PPV
-  results["SimonCoverage"]  <- findInterval(PPV, simon.est$`95% conf`) == 1
+  results["parametricCoverage"]  <- findInterval(PPV, parametric.est$`95% conf`) == 1
   
   sdata <- data.frame("t"=a$S[,1], "d"=a$S[,2], "x"=a$x, "OS"=a$S)
   sdata$x <- sdata$x + 1
   
   
-  noPar.est <- kNonP(sdata)
-  results["nonPar"] <- noPar.est$estimate
+  noPar.est <- nonParametric(sdata)
+  results["Nonparametric"] <- noPar.est$estimate
   # Check if confidence interval contains true PPV
-  results["nonParCoverage"] <- findInterval(PPV, noPar.est$`95% conf`) == 1
+  results["NonparametricCoverage"] <- findInterval(PPV, noPar.est$`95% conf`) == 1
   return(results)
 }
 ```
@@ -377,7 +377,8 @@ par(mfrow = c(1,1))
 ```
 
 ```{r, include=FALSE}
-pdf("Figure1.pdf")
+## Print figure to pdf for publication
+pdf("Figure1.pdf", width = 7, height = 5)
   par(mfrow = c(2,2))
   plot(fitPH, lty = 1:2, main = "Proportional Hazards", xlab = "Time", ylab = "Survival")
   mtext("A", side  = 3, line = 1.4, at  =-4, font = 2)
@@ -393,18 +394,6 @@ pdf("Figure1.pdf")
   mtext("D", side  = 3, line = 1.4, at  =0.2, font = 2)
 dev.off()
 ```
-
-
-```{r, include = FALSE}
-### Try with ggplot
-library(survminer)
-a <- ggsurvplot(fitPH, data = PH, title = "Proportional Hazards", legend = "none") + labs(tag = "A")
-b <- ggsurvplot(fitPH, data = PH, title = "Proportional Hazards", legend = "none", fun = "cloglog") + labs(tag = "B")
-c <- ggsurvplot(fitnotPH, data = notPH, title = "Not Proportional Hazards", legend = "none") + labs(tag = "C")
-d <- ggsurvplot(fitnotPH, data = notPH, title = "Not Proportional Hazards", legend = "none", fun = "cloglog") + labs(tag = "D")
-arrange_ggsurvplots(list(a,c,b,d), ncol = 2, nrow = 2) 
-```
-
 
 Then we perform the simulations
 ```{r}
@@ -461,9 +450,10 @@ latex(resultsTable.tmp,
       rgroup = c("Weibull", "log-normal", "log-logistic"),
       n.rgroup = c(2,2,2),
       colheads = c("Censoring", "PPV", "Mean", "Coverage", "Mean", "Coverage"),
-      cgroup = c("Simulation", "Simon", "NonPar"),
+      cgroup = c("Simulation", "Parametric", "Nonparametric"),
       n.cgroup = c(2,2,2),
       rowlabel = NA,
+      caption = "Result from the simulation using either the parametric or nonparametric method.",
       file = "simulationResults.tex")
 ```
 
@@ -596,24 +586,24 @@ Calculate  PPV and NPV using method from [@Simon2015] from published HR in [@Ama
 results <- array(0, c(2,3))
 rownames(results) <- c("PPV: Longer survival for Panitumumab in KRASwt",
                        "NPV: not Longer survival for Panitumumab in KRASmut")
-colnames(results) <- c("Simon", "Simon_IPD","NonParametric K")
+colnames(results) <- c("Parametric", "Parametric_IPD","NonParametric")
 
 
-## Simon PPV from published or recalculated IPD data
-results[1,1] <- simon(0.45, c(0.34, 0.79))$pub
-results[1,2] <- simon(amadoCoxB$coefficients[2], amadoCoxB$conf.int[3:4])$pub
+## Parametric PPV from published or recalculated IPD data
+results[1,1] <- parametric(0.45, c(0.34, 0.79))$pub
+results[1,2] <- parametric(amadoCoxB$coefficients[2], amadoCoxB$conf.int[3:4])$pub
 
-## Simon NPV from published or recalculated IPD data
-results[2,1] <- simon(0.99, c(0.73, 1.36), "NPV")$pub
-results[2,2] <- simon(amadoCoxA$coefficients[2], amadoCoxA$conf.int[3:4], "NPV")$pub
+## Parametric NPV from published or recalculated IPD data
+results[2,1] <- parametric(0.99, c(0.73, 1.36), "NPV")$pub
+results[2,2] <- parametric(amadoCoxA$coefficients[2], amadoCoxA$conf.int[3:4], "NPV")$pub
 
 ## PPV: Longer survival in panitumumab group for KRASwt (Fig2b)
 Amado2b_IPD$os <- with(Amado2b_IPD, Surv(t, d))
-results[1,3] <- kNonP(Amado2b_IPD)$pub
+results[1,3] <- nonParametric(Amado2b_IPD)$pub
 
 ## NPV: Longer survival in panitumumab group for KRASmut (Fig2a) 
 Amado2a_IPD$os <- with(Amado2a_IPD, Surv(t, d))
-results[2,3] <- kNonP(Amado2a_IPD, concordance = "NPV")$pub
+results[2,3] <- nonParametric(Amado2a_IPD, concordance = "NPV")$pub
 
 kable(results, caption="Concordance measures for Amado (2008)")
 ```
@@ -744,24 +734,24 @@ Calculate  PPV and NPV using method from [@Simon2015] from published HR in [@Mok
 results <- array(0, c(2,3))
 rownames(results) <- c("PPV: Longer survival for Gefitinib in EGFRpos",
                        "NPV: not Longer survival for Gefitinib in EGFRneg")
-colnames(results) <- c("Simon", "Simon_IPD","NonParametric K")
+colnames(results) <- c("Parametric", "Parametric_IPD","NonParametric")
 
 
-## Simon PPV from published or recalculated IPD data
-results[1,1] <- simon(0.48, c(0.36, 0.64))$pub
-results[1,2] <- simon(MokCoxB$coefficients[2], MokCoxB$conf.int[3:4])$pub
+## Parametric PPV from published or recalculated IPD data
+results[1,1] <- parametric(0.48, c(0.36, 0.64))$pub
+results[1,2] <- parametric(MokCoxB$coefficients[2], MokCoxB$conf.int[3:4])$pub
 
-## Simon NPV from published or recalculated IPD data
-results[2,1] <- simon(2.85, c(2.05,3.98), "NPV")$pub
-results[2,2] <- simon(MokCoxC$coefficients[2], MokCoxC$conf.int[3:4], "NPV")$pub
+## Parametric NPV from published or recalculated IPD data
+results[2,1] <- parametric(2.85, c(2.05,3.98), "NPV")$pub
+results[2,2] <- parametric(MokCoxC$coefficients[2], MokCoxC$conf.int[3:4], "NPV")$pub
 
 ## PPV: Longer survival with Gefitinib for EGFRpos (Fig2b)
 mok_2b_IPD$os <- with(mok_2b_IPD, Surv(t, d))
-results[1,3] <- kNonP(mok_2b_IPD)$pub
+results[1,3] <- nonParametric(mok_2b_IPD)$pub
 
 ## NPV: not Longer survival with Gefitinib for EGFRpos (Fig2c)
 mok_2c_IPD$os <- with(mok_2c_IPD, Surv(t, d))
-results[2,3] <- kNonP(mok_2c_IPD, concordance = "NPV")$pub
+results[2,3] <- nonParametric(mok_2c_IPD, concordance = "NPV")$pub
 
 kable(results, digits = 3, caption="Concordance measures for Mok (2009)")
 ```

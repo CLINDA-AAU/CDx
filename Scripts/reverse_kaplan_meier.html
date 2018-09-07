@@ -188,7 +188,43 @@ fixMonotonx &lt;- function(x){
   return(result)
 }</code></pre>
 <p>Function to calculate using Simons method <span class="citation">(Simon 2015)</span>.</p>
-<pre class="r"><code>simon &lt;- function(HR, conf = NA, concordance = &quot;PPV&quot;){
+<pre class="r"><code>parametric.nEvents &lt;- function(HR, nEvents = NA, concordance = &quot;PPV&quot;){
+  ## Function to calculate the positive or negative predictive value
+  ## using the semi-parametric method from Simon (2015).
+  ## Input are the Hazard ratio (HR) of treatment vs control,
+  ## the number of events and the desired concordance measure PPV / NPV.
+  ## Note that hazard ratios must be calculated in either
+  ## Marker posive or negative groups for respectively PPV and NPV
+  
+  ## approximate Confidence intervals for HR
+  if(!is.na(nEvents)){
+    meanConf &lt;- log(HR)
+    sdConf   &lt;- sqrt( 4 / nEvents)
+    HRlow    &lt;- exp(qnorm(0.025, mean = meanConf, sd = sdConf))
+    HRhigh   &lt;- exp(qnorm(0.975, mean = meanConf, sd = sdConf))
+  } else{
+    HRlow  &lt;- NA
+    HRhigh &lt;- NA
+  }
+  
+  if(concordance == &quot;PPV&quot;){
+    est      &lt;- 1 / (1 + HR)
+    est_low  &lt;- 1 / (1 + HRlow)
+    est_high &lt;- 1 / (1 + HRhigh)
+  } else{
+    est      &lt;- HR / (1 + HR)
+    est_low  &lt;- HRlow / (1 + HRlow)
+    est_high &lt;- HRhigh / (1 + HRhigh)
+  }
+  conf &lt;- sort(c(est_low, est_high))
+  pub  &lt;- paste0(round(est,2), &quot; (&quot;, round(conf[1],2), &quot;; &quot;, round(conf[2],2), &quot;)&quot;)
+  
+  results &lt;- list(&quot;estimate&quot; = est,
+                  &quot;95% conf&quot; = conf,
+                  &quot;pub&quot; =pub)
+  return(results)
+}</code></pre>
+<pre class="r"><code>parametric &lt;- function(HR, conf = NA, concordance = &quot;PPV&quot;){
   ## Function to calculate the positive or negative predictive value
   ## using the semi-parametric method from Simon (2015).
   ## Inputs are the Hazard ratio (HR) of treatment vs control, confidence interval
@@ -215,7 +251,7 @@ fixMonotonx &lt;- function(x){
   return(results)
 }</code></pre>
 <p>Function to calculate Non-parametric PPV</p>
-<pre class="r"><code>kNonP &lt;- function(sdata, tau = Inf, concordance = &quot;PPV&quot;){
+<pre class="r"><code>nonParametric &lt;- function(sdata, tau = Inf, concordance = &quot;PPV&quot;){
   library(&quot;survPresmooth&quot;)
   ## Function to calculate the positive or negative predictive value
   ## using the non-parametric methods suggested in this chapter. 
@@ -351,22 +387,21 @@ LogLogNumInt = function(gamma = 2, beta0 = 1, beta1  = 1, interval = c(0,Inf), n
   
   results &lt;- c()
   
-  # Store PPV estimate from Simon
-  #simon.est &lt;- simon(exp(coef(cox.res)), cox.res$nevent)
-  simon.est &lt;- simon(cox.res.sum$coefficients[2], cox.res.sum$conf.int[3:4])
-  results[&quot;Simon&quot;] &lt;- simon.est$estimate
+  # Store parametric PPV estimate
+  parametric.est &lt;- parametric(cox.res.sum$coefficients[2], cox.res.sum$conf.int[3:4])
+  results[&quot;Parametric&quot;] &lt;- parametric.est$estimate
   
   # Check if confidence interval contains true PPV
-  results[&quot;SimonCoverage&quot;]  &lt;- findInterval(PPV, simon.est$`95% conf`) == 1
+  results[&quot;parametricCoverage&quot;]  &lt;- findInterval(PPV, parametric.est$`95% conf`) == 1
   
   sdata &lt;- data.frame(&quot;t&quot;=a$S[,1], &quot;d&quot;=a$S[,2], &quot;x&quot;=a$x, &quot;OS&quot;=a$S)
   sdata$x &lt;- sdata$x + 1
   
   
-  noPar.est &lt;- kNonP(sdata)
-  results[&quot;nonPar&quot;] &lt;- noPar.est$estimate
+  noPar.est &lt;- nonParametric(sdata)
+  results[&quot;Nonparametric&quot;] &lt;- noPar.est$estimate
   # Check if confidence interval contains true PPV
-  results[&quot;nonParCoverage&quot;] &lt;- findInterval(PPV, noPar.est$`95% conf`) == 1
+  results[&quot;NonparametricCoverage&quot;] &lt;- findInterval(PPV, noPar.est$`95% conf`) == 1
   return(results)
 }</code></pre>
 </div>
@@ -480,10 +515,10 @@ kable(resultsTable, digits = 3, caption = &quot;Estimated PPV from simulated dat
 <th></th>
 <th align="right">betaCens</th>
 <th align="right">TruePPV</th>
-<th align="right">Simon</th>
-<th align="right">SimonCoverage</th>
-<th align="right">nonPar</th>
-<th align="right">nonParCoverage</th>
+<th align="right">Parametric</th>
+<th align="right">parametricCoverage</th>
+<th align="right">Nonparametric</th>
+<th align="right">NonparametricCoverage</th>
 </tr>
 </thead>
 <tbody>
@@ -553,12 +588,13 @@ latex(resultsTable.tmp,
       rgroup = c(&quot;Weibull&quot;, &quot;log-normal&quot;, &quot;log-logistic&quot;),
       n.rgroup = c(2,2,2),
       colheads = c(&quot;Censoring&quot;, &quot;PPV&quot;, &quot;Mean&quot;, &quot;Coverage&quot;, &quot;Mean&quot;, &quot;Coverage&quot;),
-      cgroup = c(&quot;Simulation&quot;, &quot;Simon&quot;, &quot;NonPar&quot;),
+      cgroup = c(&quot;Simulation&quot;, &quot;Parametric&quot;, &quot;Nonparametric&quot;),
       n.cgroup = c(2,2,2),
       rowlabel = NA,
+      caption = &quot;Result from the simulation using either the parametric or nonparametric method.&quot;,
       file = &quot;simulationResults.tex&quot;)</code></pre>
-<pre><code>## Warning: running command 'xdvi -paper 5.5x7in -s 0 /tmp/RtmpTilPvx/
-## file259767ca8878f.dvi' had status 1</code></pre>
+<pre><code>## Warning: running command 'xdvi -paper 5.5x7in -s 0 /tmp/RtmpHX1WwX/
+## file1172440367fc.dvi' had status 1</code></pre>
 </div>
 <div id="amado-2008---kras-study" class="section level1">
 <h1>Amado 2008 - KRAS study</h1>
@@ -699,24 +735,24 @@ amadoCoxB</code></pre>
 <pre class="r"><code>results &lt;- array(0, c(2,3))
 rownames(results) &lt;- c(&quot;PPV: Longer survival for Panitumumab in KRASwt&quot;,
                        &quot;NPV: not Longer survival for Panitumumab in KRASmut&quot;)
-colnames(results) &lt;- c(&quot;Simon&quot;, &quot;Simon_IPD&quot;,&quot;NonParametric K&quot;)
+colnames(results) &lt;- c(&quot;Parametric&quot;, &quot;Parametric_IPD&quot;,&quot;NonParametric&quot;)
 
 
-## Simon PPV from published or recalculated IPD data
-results[1,1] &lt;- simon(0.45, c(0.34, 0.79))$pub
-results[1,2] &lt;- simon(amadoCoxB$coefficients[2], amadoCoxB$conf.int[3:4])$pub
+## Parametric PPV from published or recalculated IPD data
+results[1,1] &lt;- parametric(0.45, c(0.34, 0.79))$pub
+results[1,2] &lt;- parametric(amadoCoxB$coefficients[2], amadoCoxB$conf.int[3:4])$pub
 
-## Simon NPV from published or recalculated IPD data
-results[2,1] &lt;- simon(0.99, c(0.73, 1.36), &quot;NPV&quot;)$pub
-results[2,2] &lt;- simon(amadoCoxA$coefficients[2], amadoCoxA$conf.int[3:4], &quot;NPV&quot;)$pub
+## Parametric NPV from published or recalculated IPD data
+results[2,1] &lt;- parametric(0.99, c(0.73, 1.36), &quot;NPV&quot;)$pub
+results[2,2] &lt;- parametric(amadoCoxA$coefficients[2], amadoCoxA$conf.int[3:4], &quot;NPV&quot;)$pub
 
 ## PPV: Longer survival in panitumumab group for KRASwt (Fig2b)
 Amado2b_IPD$os &lt;- with(Amado2b_IPD, Surv(t, d))
-results[1,3] &lt;- kNonP(Amado2b_IPD)$pub
+results[1,3] &lt;- nonParametric(Amado2b_IPD)$pub
 
 ## NPV: Longer survival in panitumumab group for KRASmut (Fig2a) 
 Amado2a_IPD$os &lt;- with(Amado2a_IPD, Surv(t, d))
-results[2,3] &lt;- kNonP(Amado2a_IPD, concordance = &quot;NPV&quot;)$pub
+results[2,3] &lt;- nonParametric(Amado2a_IPD, concordance = &quot;NPV&quot;)$pub
 
 kable(results, caption=&quot;Concordance measures for Amado (2008)&quot;)</code></pre>
 <table>
@@ -724,9 +760,9 @@ kable(results, caption=&quot;Concordance measures for Amado (2008)&quot;)</code>
 <thead>
 <tr class="header">
 <th></th>
-<th align="left">Simon</th>
-<th align="left">Simon_IPD</th>
-<th align="left">NonParametric K</th>
+<th align="left">Parametric</th>
+<th align="left">Parametric_IPD</th>
+<th align="left">NonParametric</th>
 </tr>
 </thead>
 <tbody>
@@ -883,24 +919,24 @@ MokCoxC</code></pre>
 <pre class="r"><code>results &lt;- array(0, c(2,3))
 rownames(results) &lt;- c(&quot;PPV: Longer survival for Gefitinib in EGFRpos&quot;,
                        &quot;NPV: not Longer survival for Gefitinib in EGFRneg&quot;)
-colnames(results) &lt;- c(&quot;Simon&quot;, &quot;Simon_IPD&quot;,&quot;NonParametric K&quot;)
+colnames(results) &lt;- c(&quot;Parametric&quot;, &quot;Parametric_IPD&quot;,&quot;NonParametric&quot;)
 
 
-## Simon PPV from published or recalculated IPD data
-results[1,1] &lt;- simon(0.48, c(0.36, 0.64))$pub
-results[1,2] &lt;- simon(MokCoxB$coefficients[2], MokCoxB$conf.int[3:4])$pub
+## Parametric PPV from published or recalculated IPD data
+results[1,1] &lt;- parametric(0.48, c(0.36, 0.64))$pub
+results[1,2] &lt;- parametric(MokCoxB$coefficients[2], MokCoxB$conf.int[3:4])$pub
 
-## Simon NPV from published or recalculated IPD data
-results[2,1] &lt;- simon(2.85, c(2.05,3.98), &quot;NPV&quot;)$pub
-results[2,2] &lt;- simon(MokCoxC$coefficients[2], MokCoxC$conf.int[3:4], &quot;NPV&quot;)$pub
+## Parametric NPV from published or recalculated IPD data
+results[2,1] &lt;- parametric(2.85, c(2.05,3.98), &quot;NPV&quot;)$pub
+results[2,2] &lt;- parametric(MokCoxC$coefficients[2], MokCoxC$conf.int[3:4], &quot;NPV&quot;)$pub
 
 ## PPV: Longer survival with Gefitinib for EGFRpos (Fig2b)
 mok_2b_IPD$os &lt;- with(mok_2b_IPD, Surv(t, d))
-results[1,3] &lt;- kNonP(mok_2b_IPD)$pub
+results[1,3] &lt;- nonParametric(mok_2b_IPD)$pub
 
 ## NPV: not Longer survival with Gefitinib for EGFRpos (Fig2c)
 mok_2c_IPD$os &lt;- with(mok_2c_IPD, Surv(t, d))
-results[2,3] &lt;- kNonP(mok_2c_IPD, concordance = &quot;NPV&quot;)$pub
+results[2,3] &lt;- nonParametric(mok_2c_IPD, concordance = &quot;NPV&quot;)$pub
 
 kable(results, digits = 3, caption=&quot;Concordance measures for Mok (2009)&quot;)</code></pre>
 <table>
@@ -908,9 +944,9 @@ kable(results, digits = 3, caption=&quot;Concordance measures for Mok (2009)&quo
 <thead>
 <tr class="header">
 <th></th>
-<th align="left">Simon</th>
-<th align="left">Simon_IPD</th>
-<th align="left">NonParametric K</th>
+<th align="left">Parametric</th>
+<th align="left">Parametric_IPD</th>
+<th align="left">NonParametric</th>
 </tr>
 </thead>
 <tbody>

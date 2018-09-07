@@ -1,9 +1,10 @@
-%latex.default(resultsTable.tmp, title = "", rgroup = c("Weibull",     "log-normal", "log-logistic"), n.rgroup = c(2, 2, 2), colheads = c("Censoring",     "PPV", "Mean", "Coverage", "Mean", "Coverage"), cgroup = c("Simulation",     "Simon", "NonPar"), n.cgroup = c(2, 2, 2), rowlabel = NA,     file = "simulationResults.tex")%
+%latex.default(resultsTable.tmp, title = "", rgroup = c("Weibull",     "log-normal", "log-logistic"), n.rgroup = c(2, 2, 2), colheads = c("Censoring",     "PPV", "Mean", "Coverage", "Mean", "Coverage"), cgroup = c("Simulation",     "Parametric", "Nonparametric"), n.cgroup = c(2, 2, 2), rowlabel = NA,     caption = "Result from the simulation using either the parametric or nonparametric method.",     file = "simulationResults.tex")%
 \begin{table}[!tbp]
+\caption{Result from the simulation using either the parametric or nonparametric method.\label{}} 
 \begin{center}
 \begin{tabular}{llrcrrcrr}
 \hline\hline
-\multicolumn{1}{l}{\bfseries NA}&\multicolumn{2}{c}{\bfseries Simulation}&\multicolumn{1}{c}{\bfseries }&\multicolumn{2}{c}{\bfseries Simon}&\multicolumn{1}{c}{\bfseries }&\multicolumn{2}{c}{\bfseries NonPar}\tabularnewline
+\multicolumn{1}{l}{\bfseries NA}&\multicolumn{2}{c}{\bfseries Simulation}&\multicolumn{1}{c}{\bfseries }&\multicolumn{2}{c}{\bfseries Parametric}&\multicolumn{1}{c}{\bfseries }&\multicolumn{2}{c}{\bfseries Nonparametric}\tabularnewline
 \cline{2-3} \cline{5-6} \cline{8-9}
 \multicolumn{1}{l}{}&\multicolumn{1}{c}{Censoring}&\multicolumn{1}{c}{PPV}&\multicolumn{1}{c}{}&\multicolumn{1}{c}{Mean}&\multicolumn{1}{c}{Coverage}&\multicolumn{1}{c}{}&\multicolumn{1}{c}{Mean}&\multicolumn{1}{c}{Coverage}\tabularnewline
 \hline
