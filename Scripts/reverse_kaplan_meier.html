@@ -251,7 +251,7 @@ fixMonotonx &lt;- function(x){
   return(results)
 }</code></pre>
 <p>Function to calculate Non-parametric PPV</p>
-<pre class="r"><code>nonParametric &lt;- function(sdata, tau = Inf, concordance = &quot;PPV&quot;){
+<pre class="r"><code>nonParametric &lt;- function(sdata, concordance = &quot;PPV&quot;){
   library(&quot;survPresmooth&quot;)
   ## Function to calculate the positive or negative predictive value
   ## using the non-parametric methods suggested in this chapter. 
@@ -276,8 +276,6 @@ fixMonotonx &lt;- function(x){
     sdata$km.cens &lt;- sdata$km.cens[rank.t] 
   }
   
-  sdata$tau &lt;- as.integer(sdata$t &lt; tau)
-  
   if(concordance == &quot;PPV&quot;){
     sdataT &lt;- sdata[sdata$x == 2,] 
     sdataC &lt;- sdata[sdata$x == 1,] 
@@ -294,25 +292,23 @@ fixMonotonx &lt;- function(x){
     test &lt;- function(x,y) as.integer(x &gt;= y)
   }
   
-  
-  
   # Estimate
   noD &lt;- 0
   for(j in 1:nT){
-    noD &lt;- noD + sum(test(sdataT$t[j], sdataC$t)* sdataC$km.cens^-2 * sdataC$d * sdataC$tau)
+    noD &lt;- noD + sum(test(sdataT$t[j], sdataC$t)* sdataC$km.cens^-2 * sdataC$d)
   }
   est &lt;- noD / (nT * nC)
   
   # Variance
   xi11 &lt;- 0
   for(i in 1:nT){
-    xi11 &lt;- xi11 + sum(test(sdataT$t[i], sdataC$t)* sdataC$km.cens^-4 * sdataC$d  * sdataC$tau)
+    xi11 &lt;- xi11 + sum(test(sdataT$t[i], sdataC$t)* sdataC$km.cens^-4 * sdataC$d)
   }
   xi11 &lt;- xi11 /(nT*nC)
   
   xi01 &lt;- 0
   for(i in 1:nT){
-    y1 &lt;- test(sdataT$t[i], sdataC$t)* sdataC$km.cens^-2 * sdataC$d * sdataC$tau
+    y1 &lt;- test(sdataT$t[i], sdataC$t)* sdataC$km.cens^-2 * sdataC$d
     res &lt;- y1 %*% t(y1)
     xi01 &lt;- xi01 + (sum(res) - sum(diag(res)))/(nC*(nC-1))
   }
@@ -320,7 +316,7 @@ fixMonotonx &lt;- function(x){
   
   xi10 &lt;- 0
   for(i in 1:nC){
-    y1 &lt;- test(sdataT$t,sdataC$t[i]) * sdataC$km.cens[i]^-2 * sdataC$d[i] * sdataC$tau[i]
+    y1 &lt;- test(sdataT$t,sdataC$t[i]) * sdataC$km.cens[i]^-2 * sdataC$d[i]
     res &lt;- y1 %*% t(y1)
     xi10 &lt;- xi10 + (sum(res) - sum(diag(res)))/(nT*(nT-1))
   }
@@ -593,8 +589,8 @@ latex(resultsTable.tmp,
       rowlabel = NA,
       caption = &quot;Result from the simulation using either the parametric or nonparametric method.&quot;,
       file = &quot;simulationResults.tex&quot;)</code></pre>
-<pre><code>## Warning: running command 'xdvi -paper 5.5x7in -s 0 /tmp/RtmpHX1WwX/
-## file1172440367fc.dvi' had status 1</code></pre>
+<pre><code>## Warning: running command 'xdvi -paper 5.5x7in -s 0 /tmp/RtmpH28oTZ/
+## file134d4fb6ba45.dvi' had status 1</code></pre>
 </div>
 <div id="amado-2008---kras-study" class="section level1">
 <h1>Amado 2008 - KRAS study</h1>
